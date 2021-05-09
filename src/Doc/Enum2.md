@@ -124,7 +124,7 @@ This does not seem to be a constructor we can use
 in a quote directly. However, it is possible to reflect on it and
 use it in metaprograms. `Language.Reflection` defines utilities
 for finding data types and their constructors by name.
-In addition, module `Language.Reflect.Types` in this package
+In addition, module `Language.Reflection.Types` in this package
 allows us to gather detailed information about data types.
 
 ```idris

@@ -55,7 +55,7 @@ structure of a typical enum type at the REPL:
 This leads to the following implementation:
 
 ```idris
-enumDecl1 name cons = IData EmptyFC Public dat
+enumDecl1 name cons = IData EmptyFC Private dat
   where enumName : Name
         enumName = UN name
 
@@ -84,7 +84,7 @@ the string passed whether the name is fully qualified or not.
 ```idris
 export
 enumDecl : (name : String) -> (cons : List String) -> Decl
-enumDecl name = simpleData Public (UN name) . map mkCon
+enumDecl name = simpleData Private (UN name) . map mkCon
   where mkCon : String -> ITy
         mkCon n = mkTy (UN n) (varStr name)
 ```

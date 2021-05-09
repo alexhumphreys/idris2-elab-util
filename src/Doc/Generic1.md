@@ -6,7 +6,7 @@ data types. Different libraries differ in how they represent
 data types generically and what kinds of data types
 can be represented by generics.
 
-In this series of posts I'll try to adabt several types
+In this series of posts I'll try to adapt several types
 of representations of increasing complexity to the world
 of Idris and derive these generic representations through
 elaborator reflection.
