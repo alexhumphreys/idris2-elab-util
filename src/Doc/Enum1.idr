@@ -193,6 +193,7 @@ deriveFromJSON n =
      argName <- genReadableSym "arg"
      logMsg "" 0 ("argName: " ++ show argName)
 
+     -- get the constructors of the record
      cons <- for conNames $ \n => do
        [(conName, conImpl)] <- getType n
          | _ => fail $ show n ++ "constructor must be in scope and unique"
@@ -201,18 +202,26 @@ deriveFromJSON n =
 
      logCons cons
 
+     -- given constructors, lookup names in json object for those constructors
      clauses <- traverse (\(cn, as) => genClause funName cn argName (reverse as)) cons
-     -- ?jjj
+
+     -- create function from JSON to Maybe Example
+     -- using the above clauses as patterns
      let name = n
      let clauses = [patClause `(~(var funName) (JObject ~(bindvar $ show argName)))
                               (foldl (\acc, x => `(~x <|> ~acc)) `(Nothing) (clauses))]
      let funClaim = IClaim EmptyFC MW Export [Inline] (MkTy EmptyFC EmptyFC funName `(JSON -> Maybe ~(var name)))
+     -- add a catch all pattern
      let funDecl = IDef EmptyFC funName (clauses ++ [patClause `(~(var funName) ~implicit') `(Nothing)])
+
+     -- declare the fuction in the env
      declare [funClaim, funDecl]
      [(ifName, _)] <- getType `{{FromJSON}}
        | _ => fail "FromJSON interface must be in scope and unique"
      [NS _ (DN _ ifCon)] <- getCons ifName
        | _ => fail "Interface constructor error"
+
+     -- created interface for Example, and use function we already declared
      let retty = `(FromJSON ~(var name))
      let objClaim = IClaim EmptyFC MW Export [Hint True, Inline] (MkTy EmptyFC EmptyFC objName retty)
      let objrhs = `(~(var ifCon) ~(var funName))
@@ -225,3 +234,6 @@ record Example where
 
 dummy1 : ()
 dummy1 = %runElab (deriveFromJSON `{{ Example }})
+
+bar : Maybe Example
+bar = fromJSON (JObject [("foo", JNumber 3)])
