@@ -4,6 +4,8 @@ import Language.Reflection
 import Language.Reflection.Syntax
 import Language.Reflection.Types
 
+import Language.JSON
+
 %language ElabReflection
 
 enumDecl1 : (name : String) -> (cons : List String) -> Decl
@@ -118,11 +120,42 @@ genReadableSym hint = do
     | _ => fail "cannot generate readable argument name"
   pure $ UN (v ++ show i)
 
+||| from idris2-lsp
+primStr : String -> TTImp
+primStr = IPrimVal EmptyFC . Str
+
+||| from idris2-lsp
+bindvar : String -> TTImp
+bindvar = IBindVar EmptyFC
+
+||| from idris2-lsp
+implicit' : TTImp
+implicit' = Implicit EmptyFC True
+
+public export
+interface FromJSON a where
+  fromJSON : JSON -> Maybe a
+
+export
+FromJSON Nat where
+  fromJSON (JNumber x) = pure (fromInteger $ cast x)
+  fromJSON _ = neutral
+
 ||| moved from where clause
 getArgs : TTImp -> Elab (List (Name, TTImp))
 getArgs (IPi _ _ _ (Just n) argTy retTy) = ((n, argTy) ::) <$> getArgs retTy
 getArgs (IPi _ _ _ Nothing _ _) = fail $ "All arguments must be explicitly named"
 getArgs _ = pure []
+
+||| moved from where clause
+genClause : Name -> Name -> Name -> List (Name, TTImp) -> Elab (TTImp)
+genClause funName t m xs = do
+      let rhs = foldr (\(n, type), acc => let name = primStr $ (show n) in
+                                              case type of
+                                                   `(Prelude.Types.Maybe _) => `(~acc <*> (pure $ lookup ~name ~(var m) >>= fromJSON))
+                                                   _ => `(~acc <*> (lookup ~name ~(var m) >>= fromJSON)))
+                      `(pure ~(var t)) xs
+      pure (rhs)
 
 logCons : (List (Name, List (Name, TTImp))) -> Elab ()
 logCons [] = pure ()
@@ -167,7 +200,24 @@ deriveFromJSON n =
        pure (conName, args)
 
      logCons cons
-     fail "Still not trying"
+
+     clauses <- traverse (\(cn, as) => genClause funName cn argName (reverse as)) cons
+     -- ?jjj
+     let name = n
+     let clauses = [patClause `(~(var funName) (JObject ~(bindvar $ show argName)))
+                              (foldl (\acc, x => `(~x <|> ~acc)) `(Nothing) (clauses))]
+     let funClaim = IClaim EmptyFC MW Export [Inline] (MkTy EmptyFC EmptyFC funName `(JSON -> Maybe ~(var name)))
+     let funDecl = IDef EmptyFC funName (clauses ++ [patClause `(~(var funName) ~implicit') `(Nothing)])
+     declare [funClaim, funDecl]
+     [(ifName, _)] <- getType `{{FromJSON}}
+       | _ => fail "FromJSON interface must be in scope and unique"
+     [NS _ (DN _ ifCon)] <- getCons ifName
+       | _ => fail "Interface constructor error"
+     let retty = `(FromJSON ~(var name))
+     let objClaim = IClaim EmptyFC MW Export [Hint True, Inline] (MkTy EmptyFC EmptyFC objName retty)
+     let objrhs = `(~(var ifCon) ~(var funName))
+     let objDecl = IDef EmptyFC objName [(PatClause EmptyFC (var objName) objrhs)]
+     declare [objClaim, objDecl]
 
 record Example where
   constructor MkExample

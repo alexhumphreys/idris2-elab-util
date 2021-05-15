@@ -25,6 +25,10 @@ import Text.PrettyPrint.Prettyprinter.Render.String
 --          Utils
 --------------------------------------------------------------------------------
 
+stripNs : Name -> Name
+stripNs (NS _ x) = x
+stripNs x = x
+
 ||| Pretty but uncolored output to the terminal
 export
 putPretty : Pretty t => t -> IO ()
